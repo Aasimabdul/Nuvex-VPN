@@ -1,8 +1,6 @@
 package com.nuvex.vpn
 
 import android.app.Activity
-import android.content.Intent
-import android.net.VpnService
 import android.graphics.Color
 import android.graphics.Typeface
 import android.graphics.drawable.GradientDrawable
@@ -13,14 +11,13 @@ import android.widget.LinearLayout
 import android.widget.ScrollView
 import android.widget.TextView
 import android.widget.Toast
-import com.wireguard.android.backend.Tunnel
 
 private object Palette {
     val background = Color.rgb(7, 14, 31)
     val panel = Color.rgb(15, 27, 51)
-    val panelRaised = Color.rgb(21, 37, 67)
-    val blue = Color.rgb(54, 153, 255)
-    val cyan = Color.rgb(91, 214, 255)
+    val raised = Color.rgb(21, 37, 67)
+    val blue = Color.rgb(34, 137, 255)
+    val cyan = Color.rgb(0, 213, 255)
     val primary = Color.rgb(239, 245, 255)
     val muted = Color.rgb(143, 163, 194)
     val stroke = Color.rgb(35, 60, 98)
@@ -44,21 +41,14 @@ class MainActivity : Activity() {
     private var selected = 0
     private var serverList: LinearLayout? = null
     private var selectedLabel: TextView? = null
-    private var connectionStatus: TextView? = null
     private var connectButton: TextView? = null
-    private var pendingProfile: String? = null
-    private val vpnEngine by lazy { WireGuardEngine(this) }
-
-    companion object {
-        private const val REQUEST_PROFILE = 4101
-        private const val REQUEST_VPN_PERMISSION = 4102
-    }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         window.statusBarColor = Palette.background
         window.navigationBarColor = Palette.background
-        window.decorView.systemUiVisibility = 0
+        @Suppress("DEPRECATION")
+        window.decorView.systemUiVisibility = View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR.let { 0 }
         buildScreen()
     }
 
@@ -66,10 +56,11 @@ class MainActivity : Activity() {
         val scroll = ScrollView(this).apply {
             setBackgroundColor(Palette.background)
             isFillViewport = true
+            clipToPadding = false
         }
         val root = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
-            setPadding(dp(22), dp(20), dp(22), dp(28))
+            setPadding(dp(20), dp(8), dp(20), dp(16))
         }
         scroll.addView(root)
         setContentView(scroll)
@@ -78,170 +69,78 @@ class MainActivity : Activity() {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER_VERTICAL
         }
-        val brand = TextView(this).apply {
-            text = "◈  NUVEX"
-            textSize = 21f
-            letterSpacing = 0.12f
-            setTextColor(Palette.primary)
-            typeface = Typeface.create("sans-serif", Typeface.BOLD)
-        }
-        header.addView(brand, LinearLayout.LayoutParams(0, dp(48), 1f))
-        header.addView(pill("PRIVATE BY DESIGN", Palette.panelRaised, Palette.cyan))
+        header.addView(label("◈  NUVEX", 21f, Palette.primary, true),
+            LinearLayout.LayoutParams(0, dp(44), 1f))
+        header.addView(pill("PRIVATE BY DESIGN", Palette.raised, Palette.cyan))
         root.addView(header)
 
-        root.addView(label("YOUR CONNECTION", 11f, Palette.muted, true), margin(top = 32, bottom = 8))
-        root.addView(label("Your privacy,\nyour control.", 30f, Palette.primary, true), margin(bottom = 10))
-        root.addView(label("A simple home for a more private internet.", 14f, Palette.muted), margin(bottom = 22))
+        root.addView(label("YOUR CONNECTION", 10f, Palette.cyan, true), margin(top = 10, bottom = 3))
+        root.addView(label("Your privacy, your control.", 25f, Palette.primary, true), margin(bottom = 3))
+        root.addView(label("A simpler, more private internet.", 12f, Palette.muted), margin(bottom = 12))
 
         val connection = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
-            gravity = Gravity.CENTER
-            setPadding(dp(18), dp(26), dp(18), dp(24))
-            background = rounded(Palette.panel, 28, Palette.stroke)
+            setPadding(dp(16), dp(14), dp(16), dp(14))
+            background = rounded(Palette.panel, 22, Palette.stroke)
         }
-        val orb = TextView(this).apply {
-            text = "◈"
-            textSize = 44f
-            gravity = Gravity.CENTER
-            setTextColor(Palette.cyan)
-            background = rounded(Palette.panelRaised, 100, Palette.stroke)
-            elevation = dp(4).toFloat()
-        }
-        connection.addView(orb, LinearLayout.LayoutParams(dp(104), dp(104)).apply { bottomMargin = dp(18) })
-        connectionStatus = label("NOT CONNECTED", 15f, Palette.primary, true)
-        connection.addView(connectionStatus, margin(bottom = 6))
-        connection.addView(label("Import a trusted WireGuard .conf profile to connect.", 12f, Palette.muted), margin(bottom = 20))
-        connectButton = TextView(this).apply {
-            text = "  Import WireGuard profile  "
-            textSize = 15f
-            gravity = Gravity.CENTER
-            typeface = Typeface.DEFAULT_BOLD
-            setTextColor(Color.WHITE)
-            background = rounded(Palette.blue, 18, Palette.blue)
-            setPadding(dp(20), dp(15), dp(20), dp(15))
-            setOnClickListener {
-                if (runCatching { vpnEngine.currentState() == Tunnel.State.UP }.getOrDefault(false)) {
-                    disconnectVpn()
-                } else {
-                    val picker = Intent(Intent.ACTION_OPEN_DOCUMENT).apply {
-                        addCategory(Intent.CATEGORY_OPENABLE)
-                        type = "*/*"
-                    }
-                    @Suppress("DEPRECATION")
-                    startActivityForResult(picker, REQUEST_PROFILE)
-                }
-            }
-        }
-        connection.addView(connectButton, LinearLayout.LayoutParams(-1, -2))
-        root.addView(connection, margin(bottom = 24))
-
-        val serverHeader = LinearLayout(this).apply {
+        val connectionTop = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER_VERTICAL
         }
-        serverHeader.addView(label("CHOOSE A LOCATION", 13f, Palette.primary, true),
-            LinearLayout.LayoutParams(0, dp(32), 1f))
-        serverHeader.addView(label("10 REGIONS", 11f, Palette.cyan, true))
-        root.addView(serverHeader, margin(bottom = 10))
+        val orb = TextView(this).apply {
+            text = "◈"
+            textSize = 27f
+            gravity = Gravity.CENTER
+            setTextColor(Palette.cyan)
+            background = rounded(Palette.raised, 100, Palette.stroke)
+        }
+        connectionTop.addView(orb, LinearLayout.LayoutParams(dp(60), dp(60)).apply { rightMargin = dp(12) })
+        val statusColumn = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            addView(label("NOT CONNECTED", 14f, Palette.primary, true))
+            addView(label("Automatic setup · no config files", 11f, Palette.muted), margin(top = 4))
+        }
+        connectionTop.addView(statusColumn, LinearLayout.LayoutParams(0, -2, 1f))
+        connection.addView(connectionTop)
+        connectButton = TextView(this).apply {
+            text = "Connect to Nuvex"
+            textSize = 14f
+            gravity = Gravity.CENTER
+            typeface = Typeface.DEFAULT_BOLD
+            setTextColor(Color.WHITE)
+            background = rounded(Palette.blue, 15, Palette.blue)
+            setPadding(dp(12), dp(12), dp(12), dp(12))
+            setOnClickListener {
+                Toast.makeText(
+                    this@MainActivity,
+                    "Automatic connection is not ready: Nuvex needs a verified VPN provider and live gateways first.",
+                    Toast.LENGTH_LONG
+                ).show()
+            }
+        }
+        connection.addView(connectButton, margin(top = 12))
+        root.addView(connection, margin(bottom = 14))
 
-        val chosen = servers[selected]
-        selectedLabel = label("${chosen.flag}   ${chosen.name}  ·  Planned location", 14f, Palette.primary, true)
-        selectedLabel!!.setPadding(dp(15), dp(17), dp(15), dp(17))
-        selectedLabel!!.background = rounded(Palette.panelRaised, 16, Palette.blue)
-        root.addView(selectedLabel!!, margin(bottom = 8))
+        val locationHeader = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER_VERTICAL
+        }
+        locationHeader.addView(label("LOCATIONS", 12f, Palette.primary, true),
+            LinearLayout.LayoutParams(0, dp(28), 1f))
+        locationHeader.addView(label("10 PLANNED", 10f, Palette.muted, true))
+        root.addView(locationHeader, margin(bottom = 5))
 
-        val hint = label("Locations are placeholders until verified VPN gateways are connected.", 12f, Palette.muted)
-        root.addView(hint, margin(bottom = 10))
+        selectedLabel = label("Selected: Singapore", 11f, Palette.cyan, true)
+        root.addView(selectedLabel!!, margin(bottom = 6))
+        root.addView(label("These locations are previews, not live VPN servers yet.", 11f, Palette.muted),
+            margin(bottom = 8))
 
         serverList = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
         root.addView(serverList)
         renderServers()
 
-        root.addView(label("NO ADS  ·  NO TRACKERS  ·  OPEN SOURCE", 10f, Palette.muted, true)
-            .apply { gravity = Gravity.CENTER; letterSpacing = 0.08f }, margin(top = 24))
-        root.addView(label("Nuvex VPN  •  v0.3.0 development build", 11f, Palette.muted)
-            .apply { gravity = Gravity.CENTER }, margin(top = 8))
-    }
-
-
-    @Deprecated("Uses activity result API for compatibility with the current minimal app scaffold")
-    override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
-        super.onActivityResult(requestCode, resultCode, data)
-        if (requestCode == REQUEST_PROFILE && resultCode == RESULT_OK) {
-            val uri = data?.data ?: return
-            val profile = try {
-                contentResolver.openInputStream(uri)?.bufferedReader()?.use { it.readText() }
-                    ?: throw IllegalStateException("Could not read the selected profile")
-            } catch (error: Exception) {
-                showConnectionError("Could not read the selected profile")
-                return
-            }
-            if (!profile.contains("[Interface]") || !profile.contains("[Peer]")) {
-                showConnectionError("Choose a valid WireGuard .conf profile")
-                return
-            }
-            pendingProfile = profile
-            val permissionIntent = VpnService.prepare(this)
-            if (permissionIntent != null) {
-                @Suppress("DEPRECATION")
-                startActivityForResult(permissionIntent, REQUEST_VPN_PERMISSION)
-            } else {
-                pendingProfile = null
-                connectVpn(profile)
-            }
-        } else if (requestCode == REQUEST_VPN_PERMISSION) {
-            val profile = pendingProfile
-            pendingProfile = null
-            if (resultCode == RESULT_OK && profile != null) connectVpn(profile)
-            else showConnectionError("VPN permission was not granted")
-        }
-    }
-
-    private fun connectVpn(profile: String) {
-        connectionStatus?.text = "CONNECTING…"
-        connectButton?.text = "  Connecting…  "
-        Thread {
-            try {
-                vpnEngine.connect("Nuvex", profile) { state ->
-                    runOnUiThread {
-                        if (state == Tunnel.State.UP) {
-                            connectionStatus?.text = "CONNECTED"
-                            connectButton?.text = "  Disconnect VPN  "
-                        } else if (state == Tunnel.State.DOWN) {
-                            connectionStatus?.text = "NOT CONNECTED"
-                            connectButton?.text = "  Import WireGuard profile  "
-                        }
-                    }
-                }
-                runOnUiThread {
-                    connectionStatus?.text = "CONNECTED"
-                    connectButton?.text = "  Disconnect VPN  "
-                }
-            } catch (error: Exception) {
-                runOnUiThread { showConnectionError(error.message ?: "VPN connection failed") }
-            }
-        }.start()
-    }
-
-    private fun disconnectVpn() {
-        connectionStatus?.text = "DISCONNECTING…"
-        Thread {
-            try {
-                vpnEngine.disconnect()
-                runOnUiThread {
-                    connectionStatus?.text = "NOT CONNECTED"
-                    connectButton?.text = "  Import WireGuard profile  "
-                }
-            } catch (error: Exception) {
-                runOnUiThread { showConnectionError(error.message ?: "Could not disconnect") }
-            }
-        }.start()
-    }
-
-    private fun showConnectionError(message: String) {
-        connectionStatus?.text = "NOT CONNECTED"
-        connectButton?.text = "  Import WireGuard profile  "
-        Toast.makeText(this, message, Toast.LENGTH_LONG).show()
+        root.addView(label("NO ADS  ·  NO TRACKERS  ·  OPEN SOURCE", 9f, Palette.muted, true)
+            .apply { gravity = Gravity.CENTER; letterSpacing = 0.04f }, margin(top = 10))
     }
 
     private fun renderServers() {
@@ -252,26 +151,26 @@ class MainActivity : Activity() {
             val row = LinearLayout(this).apply {
                 orientation = LinearLayout.HORIZONTAL
                 gravity = Gravity.CENTER_VERTICAL
-                setPadding(dp(14), dp(13), dp(14), dp(13))
-                background = rounded(if (active) Palette.panelRaised else Palette.panel, 15,
+                setPadding(dp(11), dp(8), dp(11), dp(8))
+                background = rounded(if (active) Palette.raised else Palette.panel, 13,
                     if (active) Palette.blue else Palette.stroke)
                 setOnClickListener {
                     selected = index
-                    selectedLabel?.text = "${server.flag}   ${server.name}  ·  Planned location"
+                    selectedLabel?.text = "Selected: ${server.name}"
                     renderServers()
                 }
             }
-            val flag = TextView(this).apply { text = server.flag; textSize = 23f }
-            row.addView(flag, LinearLayout.LayoutParams(dp(42), dp(38)).apply { gravity = Gravity.CENTER_VERTICAL })
-            val text = LinearLayout(this).apply {
+            row.addView(label(server.flag, 20f, Palette.primary),
+                LinearLayout.LayoutParams(dp(36), dp(34)).apply { gravity = Gravity.CENTER_VERTICAL })
+            val details = LinearLayout(this).apply {
                 orientation = LinearLayout.VERTICAL
-                addView(label(server.name, 14f, Palette.primary, true))
-                addView(label(server.region, 11f, Palette.muted), margin(top = 3))
+                addView(label(server.name, 13f, Palette.primary, true))
+                addView(label(server.region, 10f, Palette.muted), margin(top = 1))
             }
-            row.addView(text, LinearLayout.LayoutParams(0, -2, 1f))
-            row.addView(label(if (active) "SELECTED" else "SOON", 10f,
+            row.addView(details, LinearLayout.LayoutParams(0, -2, 1f))
+            row.addView(label(if (active) "SELECTED" else "PLANNED", 9f,
                 if (active) Palette.cyan else Palette.muted, true))
-            list.addView(row, margin(bottom = 8))
+            list.addView(row, margin(bottom = 5))
         }
     }
 
@@ -281,20 +180,20 @@ class MainActivity : Activity() {
             textSize = size
             setTextColor(color)
             if (bold) typeface = Typeface.create("sans-serif", Typeface.BOLD)
-            setLineSpacing(dp(3).toFloat(), 1f)
+            setLineSpacing(dp(1).toFloat(), 1f)
         }
 
     private fun pill(value: String, fill: Int, textColor: Int) = TextView(this).apply {
         text = value
-        textSize = 9f
-        letterSpacing = 0.05f
+        textSize = 8f
+        letterSpacing = 0.03f
         setTextColor(textColor)
         gravity = Gravity.CENTER
-        setPadding(dp(11), dp(9), dp(11), dp(9))
+        setPadding(dp(9), dp(7), dp(9), dp(7))
         background = rounded(fill, 50, Palette.stroke)
     }
 
-    private fun rounded(fill: Int, radius: Int, stroke: Int): GradientDrawable =
+    private fun rounded(fill: Int, radius: Int, stroke: Int) =
         GradientDrawable().apply {
             setColor(fill)
             cornerRadius = dp(radius).toFloat()
