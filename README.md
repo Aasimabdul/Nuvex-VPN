@@ -20,6 +20,17 @@ Nuvex VPN is an open-source Android project with a dark navy and neon-blue inter
 
 > **Important:** This is an early development build, not a ready-to-use consumer VPN service. It does not include built-in free gateways or a server-discovery service. You must import a valid profile from a VPN provider you trust. The countries displayed in the interface are planned locations, not live servers. Do not rely on this build to protect sensitive traffic.
 
+## APK size
+
+The latest successful CI build produced ABI-specific debug APKs below the 5 MiB target:
+
+| APK | Measured size |
+| --- | ---: |
+| `app-arm64-v8a-debug.apk` | 3.52 MiB (3,694,619 bytes) |
+| `app-armeabi-v7a-debug.apk` | 3.30 MiB (3,463,389 bytes) |
+
+These are separate APKs for different CPU architectures, not one universal APK. Install only the APK matching your device. The workflow now fails if any generated APK exceeds 5 MiB. These are **debug/test APKs**, not a production release.
+
 ## Current status
 
 | Area | Status |
@@ -32,7 +43,7 @@ Nuvex VPN is an open-source Android project with a dark navy and neon-blue inter
 | Built-in free country gateways | Not available |
 | Managed gateway discovery and profile delivery | Not available |
 | DNS / IPv4 / IPv6 leak and network-change testing | Not yet verified |
-| 5 MiB per-ABI APK target | CI reports actual sizes; not guaranteed until measured |
+| 5 MiB per-ABI debug APK budget | Verified by latest CI; enforced on future builds |
 | Production release | Not ready |
 
 ## Connect using a trusted profile
@@ -53,7 +64,7 @@ Requirements: Android SDK Platform 35, JDK 17 and Gradle 8.9.
 gradle --no-daemon :app:assembleDebug
 ```
 
-Per-ABI debug APKs are generated under `app/build/outputs/apk/debug/`. CI uploads APKs and SHA-256 checksums under the [latest workflow run](https://github.com/Aasimabdul/Nuvex-VPN/actions). The workflow reports the size of each APK against the 5 MiB target; size must be confirmed from the actual artifact.
+Per-ABI debug APKs are generated under `app/build/outputs/apk/debug/`. CI uploads APKs and SHA-256 checksums under the [latest workflow run](https://github.com/Aasimabdul/Nuvex-VPN/actions). Download the artifact named `nuvex-vpn-android-debug-apks`, then extract the ZIP to get the APKs and `SHA256SUMS.txt`.
 
 ## Security and privacy
 
