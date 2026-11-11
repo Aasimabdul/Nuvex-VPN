@@ -44,23 +44,23 @@ class MainActivity : Activity() {
         window.navigationBarColor = P.bg
         window.decorView.systemUiVisibility = 0
         val scroll = ScrollView(this).apply { setBackgroundColor(P.bg); isFillViewport = true; clipToPadding = false; overScrollMode = View.OVER_SCROLL_NEVER }
-        val root = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setPadding(dp(18), dp(10), dp(18), dp(22)) }
+        val root = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setPadding(dp(20), dp(14), dp(20), dp(26)) }
         scroll.addView(root); setContentView(scroll)
         val header = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL }
-        header.addView(label("◈  NUVEX", 22f, P.text, true), LinearLayout.LayoutParams(0, dp(48), 1f))
+        header.addView(label("◈  NUVEX", 25f, P.text, true), LinearLayout.LayoutParams(0, dp(48), 1f))
         header.addView(pill("WIREGUARD", P.raised, P.cyan)); root.addView(header)
-        root.addView(label("YOUR CONNECTION", 10f, P.cyan, true), margin(14, 4))
-        root.addView(label("Privacy, on your terms.", 25f, P.text, true), margin(0, 5))
-        root.addView(label("Choose a server and connect securely.", 13f, P.muted), margin(0, 16))
+        root.addView(label("YOUR CONNECTION", 12f, P.cyan, true), margin(14, 4))
+        root.addView(label("Privacy, on your terms.", 28f, P.text, true), margin(0, 5))
+        root.addView(label("Choose a server and connect securely.", 15f, P.muted), margin(0, 16))
         val card = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setPadding(dp(16), dp(16), dp(16), dp(16)); background = rounded(P.panel, 22, P.stroke) }
         val top = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL }
         top.addView(TextView(this).apply { text = "◈"; textSize = 27f; gravity = Gravity.CENTER; setTextColor(P.cyan); background = rounded(P.raised, 18, P.stroke) }, LinearLayout.LayoutParams(dp(58), dp(58)).apply { rightMargin = dp(12) })
         val statusCol = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
-        status = label("NOT CONNECTED", 14f, P.text, true)
-        detail = label("Import your WireGuard configs to begin.", 11f, P.muted)
+        status = label("NOT CONNECTED", 16f, P.text, true)
+        detail = label("Import your WireGuard configs to begin.", 13f, P.muted)
         statusCol.addView(status); statusCol.addView(detail, margin(5, 0))
         top.addView(statusCol, LinearLayout.LayoutParams(0, -2, 1f)); card.addView(top)
-        connect = button("Connect", P.blue)
+        connect = button("CONNECT", P.blue).apply { textSize = 17f; minHeight = dp(60) }
         connect.setOnClickListener {
             if (connected) disconnectVpn()
             else if (profiles.isEmpty()) pickConfigs()
@@ -72,16 +72,16 @@ class MainActivity : Activity() {
                 } else connectVpn()
             }
         }
-        card.addView(connect, margin(14, 0)); root.addView(card, margin(0, 18))
+        val connectHolder = LinearLayout(this).apply { gravity = Gravity.CENTER; orientation = LinearLayout.VERTICAL }; connectHolder.addView(connect, LinearLayout.LayoutParams(dp(230), -2)); card.addView(connectHolder, margin(16, 0)); root.addView(card, margin(0, 18))
         val section = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL }
-        section.addView(label("SERVER LOCATIONS", 13f, P.text, true), LinearLayout.LayoutParams(0, dp(30), 1f))
-        count = label("0 IMPORTED", 10f, P.muted, true); section.addView(count); root.addView(section, margin(0, 6))
-        selectedText = label("Import configs to select a location", 11f, P.cyan, true); root.addView(selectedText, margin(0, 8))
+        section.addView(label("SERVER LOCATIONS", 15f, P.text, true), LinearLayout.LayoutParams(0, dp(30), 1f))
+        count = label("0 IMPORTED", 12f, P.muted, true); section.addView(count); root.addView(section, margin(0, 6))
+        selectedText = label("Import configs to select a location", 13f, P.cyan, true); root.addView(selectedText, margin(0, 8))
         list = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }; root.addView(list)
-        val import = button("＋  Import WireGuard .conf files", P.raised).apply { setTextColor(P.cyan); setOnClickListener { pickConfigs() } }
+        val import = button("＋  Import WireGuard .conf files", P.raised).apply { textSize = 15f; minHeight = dp(54) }.apply { setTextColor(P.cyan); setOnClickListener { pickConfigs() } }
         root.addView(import, margin(8, 10))
-        root.addView(label("CONFIG PRIVACY", 10f, P.cyan, true), margin(10, 4))
-        root.addView(label("Profiles stay in memory for this app session and are not uploaded. Import your .conf files again after restarting.", 11f, P.muted), margin(0, 14))
+        root.addView(label("CONFIG PRIVACY", 12f, P.cyan, true), margin(10, 4))
+        root.addView(label("Profiles stay in memory for this app session and are not uploaded. Import your .conf files again after restarting.", 13f, P.muted), margin(0, 14))
         root.addView(label("DARK NAVY  ·  NEON CYAN  ·  WIREGUARD", 9f, P.muted).apply { gravity = Gravity.CENTER; letterSpacing = 0.035f }, margin(4, 0))
         renderProfiles()
     }
@@ -174,8 +174,8 @@ class MainActivity : Activity() {
         if (!::list.isInitialized) return
         list.removeAllViews(); count.text = profiles.size.toString() + " IMPORTED"
         if (profiles.isEmpty()) {
-            list.addView(label("No configs imported yet", 14f, P.text, true), margin(12, 4))
-            list.addView(label("Select your WireGuard .conf files with the button below.", 11f, P.muted), margin(0, 8))
+            list.addView(label("No configs imported yet", 16f, P.text, true), margin(12, 4))
+            list.addView(label("Select your five WireGuard .conf files with the button below.", 13f, P.muted), margin(0, 8))
             selectedText.text = "Import configs to select a location"; return
         }
         profiles.forEachIndexed { index, profile ->
@@ -190,9 +190,9 @@ class MainActivity : Activity() {
                 }
             }
             row.addView(label(profile.flag, 23f, P.text), LinearLayout.LayoutParams(dp(42), dp(38)).apply { gravity = Gravity.CENTER_VERTICAL })
-            val details = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; addView(label(profile.name, 13f, P.text, true)); addView(label(profile.endpoint, 10f, P.muted), margin(3, 0)) }
+            val details = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; addView(label(profile.name, 15f, P.text, true)); addView(label(profile.endpoint, 12f, P.muted), margin(3, 0)) }
             row.addView(details, LinearLayout.LayoutParams(0, -2, 1f))
-            row.addView(label(if (active) "SELECTED" else "SELECT", 9f, if (active) P.cyan else P.muted, true))
+            row.addView(label(if (active) "SELECTED" else "SELECT", 11f, if (active) P.cyan else P.muted, true))
             list.addView(row, margin(0, 7))
         }
         selectedText.text = "Selected: " + profiles[selected].name
@@ -208,7 +208,7 @@ class MainActivity : Activity() {
         setPadding(dp(10), dp(8), dp(10), dp(8)); background = rounded(fill, 50, P.stroke)
     }
     private fun button(value: String, fill: Int) = TextView(this).apply {
-        text = value; textSize = 14f; gravity = Gravity.CENTER; typeface = Typeface.DEFAULT_BOLD; setTextColor(Color.WHITE)
+        text = value; textSize = 16f; gravity = Gravity.CENTER; typeface = Typeface.DEFAULT_BOLD; setTextColor(Color.WHITE)
         setPadding(dp(14), dp(14), dp(14), dp(14)); background = rounded(fill, 15, if (fill == P.blue) P.blue else P.stroke)
     }
     private fun rounded(fill: Int, radius: Int, stroke: Int) = GradientDrawable().apply { setColor(fill); cornerRadius = dp(radius).toFloat(); setStroke(dp(1), stroke) }
