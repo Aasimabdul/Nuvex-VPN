@@ -12,7 +12,6 @@ application {
     mainClass.set("io.ktor.server.netty.EngineMain")
 }
 
-repositories { mavenCentral() }
 
 dependencies {
     implementation("io.ktor:ktor-server-core-jvm:3.0.3")
