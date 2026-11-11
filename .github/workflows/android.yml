@@ -41,7 +41,7 @@ jobs:
           ANDROID_HOME: /usr/local/lib/android/sdk
           ANDROID_SDK_ROOT: /usr/local/lib/android/sdk
         run: gradle --no-daemon :app:assembleDebug
-      - name: Report APK sizes and checksums
+      - name: Enforce 5 MiB per-APK budget and calculate checksums
         shell: bash
         run: |
           set -euo pipefail
@@ -51,15 +51,26 @@ jobs:
             echo "No APKs were produced"
             exit 1
           fi
+
           mkdir -p release-artifacts
+          max_bytes=$((5 * 1024 * 1024))
+          failed=0
           for apk in "${apks[@]}"; do
             size=$(stat -c%s "$apk")
             mib=$(awk -v n="$size" 'BEGIN { printf "%.2f", n/1048576 }')
             echo "$apk: $mib MiB ($size bytes)"
             cp "$apk" release-artifacts/
+            if (( size > max_bytes )); then
+              echo "::error file=$apk::APK exceeds the 5 MiB per-ABI budget ($size bytes)"
+              failed=1
+            fi
           done
           (cd release-artifacts && sha256sum *.apk > SHA256SUMS.txt)
-          echo "5 MiB target is reported per ABI APK; any oversize result needs further optimization."
+          if (( failed != 0 )); then
+            echo "One or more APKs exceed the 5 MiB budget."
+            exit 1
+          fi
+          echo "All generated ABI APKs are within the 5 MiB budget."
       - name: Upload development APKs
         uses: actions/upload-artifact@v4
         with:
