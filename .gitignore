@@ -10,3 +10,6 @@ captures/
 .cxx/
 *.jks
 *.keystore
+
+# Private WireGuard configs (contain private keys) - never commit
+app/src/main/assets/configs/
