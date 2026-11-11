@@ -13,6 +13,17 @@ android {
         targetSdk = 35
         versionCode = 3
         versionName = "0.5.0"
+
+        // Public address of the Nuvex backend. Set with -PnuvexApiUrl=https://... or the
+        // NUVEX_API_URL environment variable. Never put keys or secrets here.
+        val apiUrl = (project.findProperty("nuvexApiUrl") as String?)
+            ?: System.getenv("NUVEX_API_URL")
+            ?: ""
+        buildConfigField("String", "NUVEX_API_URL", "\"" + apiUrl.replace("\"", "") + "\"")
+    }
+
+    buildFeatures {
+        buildConfig = true
     }
 
     // Build per-ABI APKs instead of shipping every native architecture in one file.

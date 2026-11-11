@@ -1,0 +1,24 @@
+[Unit]
+Description=Nuvex backend (WireGuard session API)
+After=network-online.target wg-quick@wg0.service
+Wants=network-online.target
+
+[Service]
+User=nuvex
+Group=nuvex
+EnvironmentFile=/etc/nuvex/backend.env
+ExecStart=/opt/nuvex/bin/nuvex-backend
+Restart=on-failure
+# Needed so the unprivileged service can run "wg set ..." on the interface.
+AmbientCapabilities=CAP_NET_ADMIN
+CapabilityBoundingSet=CAP_NET_ADMIN
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+PrivateTmp=true
+# Do not keep request logs: they would contain client addresses.
+StandardOutput=null
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target

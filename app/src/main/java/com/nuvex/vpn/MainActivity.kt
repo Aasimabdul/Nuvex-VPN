@@ -1,6 +1,7 @@
 package com.nuvex.vpn
 
 import android.app.Activity
+import android.content.Context
 import android.content.Intent
 import android.graphics.Color
 import android.graphics.Typeface
@@ -13,7 +14,11 @@ import android.widget.LinearLayout
 import android.widget.ScrollView
 import android.widget.TextView
 import android.widget.Toast
+import com.nuvex.vpn.provider.SelfHostedProvider
+import com.nuvex.vpn.provider.SessionRequest
 import com.wireguard.android.backend.Tunnel
+import kotlinx.coroutines.runBlocking
+import java.util.UUID
 
 private object P {
     val bg = Color.rgb(5, 8, 20); val panel = Color.rgb(15, 20, 38)
@@ -22,23 +27,25 @@ private object P {
     val muted = Color.rgb(164, 166, 194); val stroke = Color.rgb(51, 43, 79)
     val green = Color.rgb(54, 239, 157); val red = Color.rgb(255, 76, 101)
 }
-private data class Profile(val flag: String, val name: String, val server: String, val config: String)
 
-/** Country configs bundled in app/src/main/assets/configs/ (git-ignored, they contain private keys). */
-private data class BundledServer(val file: String, val code: String, val country: String, val flag: String)
-private val BUNDLED_SERVERS = listOf(
-    BundledServer("us.conf", "US", "United States", "🇺🇸"),
-    BundledServer("ca.conf", "CA", "Canada", "🇨🇦"),
-    BundledServer("nl.conf", "NL", "Netherlands", "🇳🇱"),
-    BundledServer("sg.conf", "SG", "Singapore", "🇸🇬"),
-    BundledServer("ro.conf", "RO", "Romania", "🇷🇴")
-)
+private data class Loc(val id: String, val flag: String, val name: String, val detail: String)
 
 class MainActivity : Activity() {
-    private val profiles = mutableListOf<Profile>()
+    private var locations = listOf<Loc>()
     private var selected = 0
     private var connected = false
+    private var sessionId: String? = null
     private val engine by lazy { WireGuardEngine(this) }
+    private val provider: SelfHostedProvider? by lazy {
+        val url = BuildConfig.NUVEX_API_URL
+        if (url.startsWith("https://")) SelfHostedProvider(url) else null
+    }
+    private val deviceId: String by lazy {
+        val prefs = getSharedPreferences("nuvex", Context.MODE_PRIVATE)
+        prefs.getString("device_id", null) ?: UUID.randomUUID().toString().also {
+            prefs.edit().putString("device_id", it).apply()
+        }
+    }
     private lateinit var list: LinearLayout
     private lateinit var status: TextView
     private lateinit var detail: TextView
@@ -67,16 +74,16 @@ class MainActivity : Activity() {
         top.addView(TextView(this).apply { text = "⛨"; textSize = 25f; gravity = Gravity.CENTER; setTextColor(P.cyan); background = rounded(P.raised, 18, P.stroke) }, LinearLayout.LayoutParams(dp(54), dp(54)).apply { rightMargin = dp(12) })
         val statusCol = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
         status = label("NOT CONNECTED", 17f, P.text, true).apply { gravity = Gravity.CENTER }
-        detail = label("Pick a country, then tap Connect.", 13f, P.muted).apply { gravity = Gravity.CENTER }
+        detail = label("Loading locations…", 13f, P.muted).apply { gravity = Gravity.CENTER }
         statusCol.addView(status); statusCol.addView(detail, margin(5, 0))
         top.addView(statusCol, LinearLayout.LayoutParams(0, -2, 1f)); card.addView(top, margin(0, 10))
-        connect = button("⏻\nCONNECT", P.blue).apply {
+        connect = button("CONNECT", P.blue).apply {
             textSize = 19f; minHeight = dp(0); gravity = Gravity.CENTER
             background = GradientDrawable(GradientDrawable.Orientation.TL_BR, intArrayOf(Color.rgb(191, 104, 255), Color.rgb(100, 39, 230))).apply { shape = GradientDrawable.OVAL; setStroke(dp(4), Color.rgb(74, 37, 119)) }
         }
         connect.setOnClickListener {
             if (connected) disconnectVpn()
-            else if (profiles.isEmpty()) showStatus("NO SERVERS", "No server configs are bundled in this build.")
+            else if (locations.isEmpty()) loadLocations()
             else {
                 val intent = VpnService.prepare(this)
                 if (intent != null) {
@@ -94,20 +101,33 @@ class MainActivity : Activity() {
         selectedText = label("Select a location", 13f, P.cyan, true); root.addView(selectedText, margin(0, 8))
         list = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }; root.addView(list)
         root.addView(label("DARK NAVY  ·  NEON CYAN  ·  WIREGUARD", 9f, P.muted).apply { gravity = Gravity.CENTER; letterSpacing = 0.035f }, margin(18, 0))
-        loadBundledProfiles()
-        renderProfiles()
+        renderLocations()
+        loadLocations()
     }
 
-    /** Reads the bundled country configs. A missing or invalid file is skipped, never faked. */
-    private fun loadBundledProfiles() {
-        profiles.clear()
-        for (server in BUNDLED_SERVERS) {
-            val raw = runCatching { assets.open("configs/" + server.file).bufferedReader().use { it.readText() } }.getOrNull() ?: continue
-            if (!raw.contains("[Interface]") || !raw.contains("[Peer]") || !Regex("(?m)^\\s*PrivateKey\\s*=").containsMatchIn(raw)) continue
-            val number = Regex("(?m)^\\s*#\\s*" + server.code + "-FREE#([0-9]+)").find(raw)?.groupValues?.get(1)
-            profiles.add(Profile(server.flag, server.country, if (number != null) "Free server #" + number else "Free server", raw.trim()))
+    /** Asks the Nuvex server which countries are available. Nothing is invented locally. */
+    private fun loadLocations() {
+        val api = provider
+        if (api == null) {
+            showStatus("NOT CONFIGURED", "This build has no Nuvex server address.")
+            renderLocations(); return
         }
-        selected = 0
+        showStatus("LOADING…", "Getting available locations.")
+        Thread {
+            try {
+                val result = runBlocking { api.listLocations() }
+                val mapped = result.filter { it.available && it.supportedProtocols.contains("wireguard") }.map {
+                    Loc(it.id, flagFor(it.countryCode), it.countryName, it.city ?: "Free server")
+                }
+                runOnUiThread {
+                    locations = mapped; selected = 0; renderLocations()
+                    if (mapped.isEmpty()) showStatus("NO SERVERS", "No locations are available right now.")
+                    else showStatus("NOT CONNECTED", "Pick a country, then tap Connect.")
+                }
+            } catch (e: Exception) {
+                runOnUiThread { showStatus("NO CONNECTION", (e.message ?: "Could not load locations.").take(100) + " Tap Connect to retry.") }
+            }
+        }.start()
     }
 
     @Deprecated("Uses Activity results for broad Android compatibility")
@@ -119,23 +139,30 @@ class MainActivity : Activity() {
     }
 
     private fun connectVpn() {
-        val profile = profiles.getOrNull(selected) ?: run { showStatus("CHOOSE A SERVER", "Select a country first."); return }
-        showStatus("CONNECTING…", profile.name); connect.isEnabled = false
+        val api = provider ?: return
+        val loc = locations.getOrNull(selected) ?: run { showStatus("CHOOSE A SERVER", "Select a country first."); return }
+        showStatus("CONNECTING…", loc.name); connect.isEnabled = false
         Thread {
+            var created: String? = null
             try {
-                engine.connect("nuvex", profile.config) { state ->
+                val session = runBlocking { api.createSession(SessionRequest(userId = deviceId, deviceId = deviceId, locationId = loc.id)) }
+                created = session.id
+                engine.connect("nuvex", session.configuration) { state ->
                     runOnUiThread {
-                        if (state == Tunnel.State.UP) { connected = true; showStatus("CONNECTED", "Tunnel is up · " + profile.name); connect.text = "⏻\nDISCONNECT"; connect.isEnabled = true }
-                        else if (state == Tunnel.State.DOWN && connected) { connected = false; showStatus("DISCONNECTED", "VPN tunnel stopped."); connect.text = "⏻\nCONNECT"; connect.isEnabled = true }
+                        if (state == Tunnel.State.UP) { connected = true; showStatus("CONNECTED", "Tunnel is up · " + loc.name); connect.text = "DISCONNECT"; connect.isEnabled = true }
+                        else if (state == Tunnel.State.DOWN && connected) { connected = false; showStatus("DISCONNECTED", "VPN tunnel stopped."); connect.text = "CONNECT"; connect.isEnabled = true }
                     }
                 }
+                val up = engine.currentState() == Tunnel.State.UP
+                if (up) sessionId = session.id else runCatching { runBlocking { api.revokeSession(session.id) } }
                 runOnUiThread {
-                    connected = engine.currentState() == Tunnel.State.UP
-                    showStatus(if (connected) "CONNECTED" else "NOT CONNECTED", if (connected) "Tunnel is up · " + profile.name else "Tunnel did not report an active state.")
-                    connect.text = if (connected) "⏻\nDISCONNECT" else "⏻\nCONNECT"; connect.isEnabled = true
+                    connected = up
+                    showStatus(if (up) "CONNECTED" else "NOT CONNECTED", if (up) "Tunnel is up · " + loc.name else "Tunnel did not report an active state.")
+                    connect.text = if (up) "DISCONNECT" else "CONNECT"; connect.isEnabled = true
                 }
             } catch (e: Exception) {
-                runOnUiThread { connected = false; showStatus("CONNECTION FAILED", e.message?.take(100) ?: "Check the config and server."); connect.text = "⏻\nTRY AGAIN"; connect.isEnabled = true }
+                created?.let { id -> runCatching { runBlocking { api.revokeSession(id) } } }
+                runOnUiThread { connected = false; showStatus("CONNECTION FAILED", e.message?.take(100) ?: "Check your connection and try again."); connect.text = "TRY AGAIN"; connect.isEnabled = true }
             }
         }.start()
     }
@@ -144,10 +171,16 @@ class MainActivity : Activity() {
         connect.isEnabled = false
         Thread {
             val error = runCatching { engine.disconnect() }.exceptionOrNull()
+            val id = sessionId
+            if (error == null && id != null) {
+                // Best effort: the server also removes expired sessions by itself.
+                runCatching { runBlocking { provider?.revokeSession(id) } }
+                sessionId = null
+            }
             runOnUiThread {
                 connected = false
                 showStatus(if (error == null) "NOT CONNECTED" else "DISCONNECT ERROR", if (error == null) "VPN tunnel stopped." else "Please try again.")
-                connect.text = "⏻\nCONNECT"; connect.isEnabled = true
+                connect.text = "CONNECT"; connect.isEnabled = true
             }
         }.start()
     }
@@ -157,32 +190,38 @@ class MainActivity : Activity() {
         status.setTextColor(if (title == "CONNECTED") P.green else if (title.contains("FAILED") || title.contains("ERROR") || title.contains("DENIED")) P.red else P.text)
     }
 
-    private fun renderProfiles() {
+    private fun renderLocations() {
         if (!::list.isInitialized) return
-        list.removeAllViews(); count.text = profiles.size.toString() + " LOCATIONS"
-        if (profiles.isEmpty()) {
-            list.addView(label("No server configs in this build", 16f, P.text, true), margin(12, 4))
-            list.addView(label("Add your .conf files to app/src/main/assets/configs/ and rebuild.", 13f, P.muted), margin(0, 8))
+        list.removeAllViews(); count.text = locations.size.toString() + " LOCATIONS"
+        if (locations.isEmpty()) {
+            list.addView(label("No locations yet", 16f, P.text, true), margin(12, 4))
+            list.addView(label("Locations come from the Nuvex server. Tap Connect to try again.", 13f, P.muted), margin(0, 8))
             selectedText.text = "No locations available"; return
         }
-        profiles.forEachIndexed { index, profile ->
+        locations.forEachIndexed { index, loc ->
             val active = index == selected
             val row = LinearLayout(this).apply {
                 orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL
                 setPadding(dp(12), dp(11), dp(12), dp(11))
                 background = rounded(if (active) P.raised else P.panel, 15, if (active) P.blue else P.stroke)
                 setOnClickListener {
-                    if (!connected) { selected = index; renderProfiles() }
+                    if (!connected) { selected = index; renderLocations() }
                     else Toast.makeText(this@MainActivity, "Disconnect before changing servers.", Toast.LENGTH_SHORT).show()
                 }
             }
-            row.addView(label(profile.flag, 23f, P.text), LinearLayout.LayoutParams(dp(42), dp(38)).apply { gravity = Gravity.CENTER_VERTICAL })
-            val details = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; addView(label(profile.name, 15f, P.text, true)); addView(label(profile.server, 12f, P.muted), margin(3, 0)) }
+            row.addView(label(loc.flag, 23f, P.text), LinearLayout.LayoutParams(dp(42), dp(38)).apply { gravity = Gravity.CENTER_VERTICAL })
+            val details = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; addView(label(loc.name, 15f, P.text, true)); addView(label(loc.detail, 12f, P.muted), margin(3, 0)) }
             row.addView(details, LinearLayout.LayoutParams(0, -2, 1f))
             row.addView(label(if (active) "SELECTED" else "SELECT", 11f, if (active) P.cyan else P.muted, true))
             list.addView(row, margin(0, 7))
         }
-        selectedText.text = "Selected: " + profiles[selected].name
+        selectedText.text = "Selected: " + locations[selected].name
+    }
+
+    private fun flagFor(countryCode: String): String {
+        val code = countryCode.uppercase()
+        if (code.length != 2 || code.any { it !in 'A'..'Z' }) return "🌐"
+        return code.map { String(Character.toChars(0x1F1E6 + (it - 'A'))) }.joinToString("")
     }
 
     private fun label(value: String, size: Float, color: Int, bold: Boolean = false) = TextView(this).apply {

@@ -39,21 +39,12 @@ jobs:
           fi
           yes | "$SDKMANAGER" --sdk_root="$ANDROID_HOME" --licenses || true
           "$SDKMANAGER" --sdk_root="$ANDROID_HOME" --install "platforms;android-35" "build-tools;35.0.0"
-      - name: Add bundled server configs from secret
-        env:
-          WG_CONFIGS_B64: ${{ secrets.WG_CONFIGS_B64 }}
-        run: |
-          if [ -n "$WG_CONFIGS_B64" ]; then
-            mkdir -p app/src/main/assets
-            printf '%s' "$WG_CONFIGS_B64" | base64 -d | tar xz -C app/src/main/assets
-            ls app/src/main/assets/configs
-          else
-            echo "WG_CONFIGS_B64 is not set; building without server configs"
-          fi
       - name: Build split APKs
         env:
           ANDROID_HOME: /usr/local/lib/android/sdk
           ANDROID_SDK_ROOT: /usr/local/lib/android/sdk
+          # Public https address of the Nuvex backend (Settings > Variables > Actions).
+          NUVEX_API_URL: ${{ vars.NUVEX_API_URL }}
         run: gradle --no-daemon :app:assembleDebug
       - name: Enforce 5 MiB per-APK budget and calculate checksums
         shell: bash
@@ -96,6 +87,6 @@ jobs:
         with:
           name: Nuvex VPN ${{ github.ref_name }}
           body: |
-            Prototype build. It connects through shared free-tier WireGuard servers, so the server operator can see your traffic. Do not use it for sensitive activity.
+            Prototype build. Traffic goes through Nuvex-operated WireGuard servers, so the operator can technically see connection metadata. Leak testing is not complete; do not rely on it for sensitive activity.
           generate_release_notes: true
           files: release-artifacts/*
