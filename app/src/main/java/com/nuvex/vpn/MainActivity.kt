@@ -135,7 +135,12 @@ class MainActivity : Activity() {
     private fun renderServers() {
         val list = serverList ?: return
         list.removeAllViews()
-        if (servers.isEmpty()) {\n            list.addView(label("Provider not configured", 14f, Palette.primary, true), margin(top = 8, bottom = 3))\n            list.addView(label("Nuvex needs an authorized provider account before it can show real locations or connect.", 11f, Palette.muted), margin(bottom = 6))\n            return\n        }\n        servers.forEachIndexed { index, server ->
+        if (servers.isEmpty()) {
+            list.addView(label("Provider not configured", 14f, Palette.primary, true), margin(top = 8, bottom = 3))
+            list.addView(label("Nuvex needs an authorized provider account before it can show real locations or connect.", 11f, Palette.muted), margin(bottom = 6))
+            return
+        }
+        servers.forEachIndexed { index, server ->
             val active = index == selected
             val row = LinearLayout(this).apply {
                 orientation = LinearLayout.HORIZONTAL
