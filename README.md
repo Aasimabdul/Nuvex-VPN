@@ -26,9 +26,9 @@
 
 Nuvex VPN is an open-source Android project focused on making privacy tools feel simple: a focused interface, a clear connection state, a choice of locations, and no advertising clutter.
 
-The goal is a small, thoughtfully designed app that is transparent about how it works. Nuvex is being developed in public, and its source code is available for anyone to inspect, learn from, and improve.
+The goal is a thoughtfully designed app that is transparent about how it works. Nuvex is being developed in public, and its source code is available for anyone to inspect, learn from, and improve.
 
-> **Important — early development:** Nuvex is currently a starter build. A production VPN protocol and live VPN gateways have **not** been configured. The locations in the current interface are illustrative placeholders, not working servers. Do not rely on this build to protect internet traffic.
+> **Important — early development:** The official WireGuard Android tunnel library and an app-side adapter are now included, but no trusted server profiles or live VPN gateways are configured. The adapter is not yet connected to a production server-discovery flow or the UI. The ten locations shown in the current interface are placeholders, not working servers. Do not rely on this development build to protect internet traffic.
 
 ## Project status
 
@@ -37,16 +37,18 @@ The goal is a small, thoughtfully designed app that is transparent about how it 
 | Native Kotlin Android project | Started |
 | Dark navy + neon-blue interface | Initial implementation |
 | Location selector UI | Initial implementation; placeholder locations |
-| Automated Android build workflow | Configured; check the Actions tab for the latest result |
-| Real VPN tunnel and live gateways | Not implemented |
-| Security, DNS, IPv4/IPv6 leak and reconnect testing | Pending |
+| WireGuard tunnel library | Dependency added; adapter groundwork committed |
+| Android VPN permission and connection UI flow | Not yet wired end-to-end |
+| Live gateway discovery and server profiles | Not configured |
+| Automated Android build workflow | Configured; check Actions for the latest result |
+| DNS, IPv4/IPv6 leak and reconnect testing | Pending |
 | Public production APK release | Not available yet |
 
 ## Design principles
 
-- **Privacy first:** no ad SDK or analytics SDK is included in the current scaffold.
+- **Privacy first:** no ad SDK or analytics SDK is included in the current project.
 - **Clear by default:** the app must never display “connected” unless a real tunnel has been established and verified.
-- **Lightweight:** keep dependencies and APK size under review as features are added.
+- **Lightweight:** measure release APKs and optimize ABI packaging without removing necessary security components.
 - **Open source:** make implementation choices and limitations visible.
 - **User control:** clear connection states and an understandable location selector.
 
@@ -58,17 +60,19 @@ These are development goals, not claims that every feature is available today.
 - [x] Dark navy and neon-blue starter interface
 - [x] Initial location selector UI
 - [x] MIT license and automated build workflow
-- [ ] Integrate a supported VPN protocol and real, maintained gateways
-- [ ] Android VPN consent flow and correct tunnel lifecycle
+- [x] Add the official WireGuard tunnel dependency and initial engine adapter
+- [ ] Connect Android VPN permission flow and UI to the engine
+- [ ] Build a trusted server-discovery and profile-delivery backend
+- [ ] Operate or integrate verified, maintained gateways in supported regions
 - [ ] Reliable connect, disconnect, reconnect and failure states
-- [ ] DNS and IPv4/IPv6 routing plus leak tests
-- [ ] Verify gateway ownership, privacy policy and operational security
-- [ ] Release a tested APK and publish checksums and release notes
-- [ ] Measure APK size and optimize without compromising security
+- [ ] Validate DNS and IPv4/IPv6 routing, leak protection and network changes
+- [ ] Review gateway ownership, privacy policy and operational security
+- [ ] Release a tested APK with checksums and release notes
+- [ ] Measure APK size and optimize ABI packaging without compromising security
 
 ### Planned locations
 
-The initial UI illustrates ten intended regions: Singapore, India, Japan, Netherlands, Germany, United Kingdom, United States, Canada, France and Australia. They are **not live VPN endpoints**. Availability will depend on verified infrastructure and operating costs; a country will only be advertised as available after its gateway has been configured and tested.
+The initial UI illustrates ten intended regions: Singapore, India, Japan, Netherlands, Germany, United Kingdom, United States, Canada, France and Australia. They are **not live VPN endpoints**. Availability depends on verified infrastructure and operating costs; a country will only be advertised as available after its gateway has been configured and tested.
 
 ## Build from source
 
@@ -94,11 +98,11 @@ The initial UI illustrates ten intended regions: Singapore, India, Japan, Nether
    app/build/outputs/apk/debug/app-debug.apk
    ```
 
-The debug APK is for development only. It is not a production VPN and should not be used as a privacy or security guarantee. Check the [Actions tab](https://github.com/Aasimabdul/Nuvex-VPN/actions) for automated build results.
+The debug APK is for development only. It is not a production VPN and should not be used as a privacy or security guarantee. Check the [Actions tab](https://github.com/Aasimabdul/Nuvex-VPN/actions) for the latest build result.
 
 ## Download
 
-A public release APK will be linked here after the app has a working backend and passes the required build and security checks. Until then, use the source code to inspect the project or build the development scaffold yourself. **There is no production-ready VPN download yet.**
+A public release APK will be linked here after the app has verified gateways and passes build, connection and security checks. Until then, use the source code to inspect the project or build the development scaffold yourself. **There is no production-ready VPN download yet.**
 
 ## Privacy and security
 
@@ -108,7 +112,7 @@ A VPN app is only as trustworthy as its implementation and the people operating 
 - Never treat a location label or UI animation as proof of a secure tunnel.
 - Do not ship private gateway keys or credentials inside the APK.
 - Security claims will be made only after implementation and testing.
-- The eventual gateway provider's privacy policy and logging practices must be reviewed separately from this app's source code.
+- The gateway provider's privacy policy and logging practices must be reviewed separately from this app's source code.
 
 This project is not yet suitable for protecting sensitive traffic.
 
@@ -122,7 +126,7 @@ Issues, bug reports, design feedback and code contributions are welcome. Please 
 
 ## Roadmap
 
-The priority is correctness before extra features: implement a real, supported VPN tunnel, verify gateway availability, test routing and leaks, then publish a release with transparent limitations. Visual polish and APK-size optimization come alongside those checks—not instead of them.
+The priority is correctness before extra features: connect the WireGuard engine to verified gateways, implement the Android connection lifecycle, test routing and leaks, then publish a release with transparent limitations. Visual polish and APK-size optimization come alongside those checks—not instead of them.
 
 ## License
 
