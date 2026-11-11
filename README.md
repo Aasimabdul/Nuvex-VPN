@@ -2,7 +2,7 @@
 
 <p align="center">
   <strong>A calmer, cleaner approach to online privacy.</strong><br>
-  A lightweight, ad-free Android VPN project built with Kotlin and WireGuard.
+  A lightweight, ad-free Android VPN project built with Kotlin.
 </p>
 
 <p align="center">
@@ -16,45 +16,38 @@
 
 ## What is Nuvex?
 
-Nuvex VPN is an open-source Android project with a dark navy and neon-blue interface and a WireGuard-based tunnel engine. The app can import a WireGuard `.conf` profile, request Android's VPN consent, and attempt to establish a real tunnel through the profile's configured peer.
+Nuvex is an open-source Android VPN app prototype with a dark navy/neon-blue interface. The home screen has been redesigned to use vertical space more efficiently and no longer asks users to import a WireGuard configuration file.
 
-> **Important:** This is an early development build, not a ready-to-use consumer VPN service. It does not include built-in free gateways or a server-discovery service. You must import a valid profile from a VPN provider you trust. The countries displayed in the interface are planned locations, not live servers. Do not rely on this build to protect sensitive traffic.
+> **Important:** Automatic VPN connection is not implemented yet. The Connect button currently explains that a verified provider integration and live VPN gateways are required. The country list is a visual preview only; these are not working servers. Do not rely on this development build to protect traffic.
 
 ## APK size
 
-The latest successful CI build produced ABI-specific debug APKs below the 5 MiB target:
+The latest previously verified CI build produced ABI-specific debug APKs below the 5 MiB target:
 
 | APK | Measured size |
 | --- | ---: |
 | `app-arm64-v8a-debug.apk` | 3.52 MiB (3,694,619 bytes) |
 | `app-armeabi-v7a-debug.apk` | 3.30 MiB (3,463,389 bytes) |
 
-These are separate APKs for different CPU architectures, not one universal APK. Install only the APK matching your device. The workflow now fails if any generated APK exceeds 5 MiB. These are **debug/test APKs**, not a production release.
+Those sizes refer to the previous build and must be re-verified for this UI update. These are separate architecture-specific debug APKs, not one universal APK or a production release.
 
 ## Current status
 
 | Area | Status |
 | --- | --- |
-| Kotlin Android app and dark UI | Implemented |
-| WireGuard tunnel library | Integrated |
-| Import WireGuard `.conf` profile | Implemented in app flow |
-| Android VPN consent request | Implemented in app flow |
-| Connect / disconnect via imported profile | Implemented; requires a valid reachable peer |
-| Built-in free country gateways | Not available |
-| Managed gateway discovery and profile delivery | Not available |
-| DNS / IPv4 / IPv6 leak and network-change testing | Not yet verified |
-| 5 MiB per-ABI debug APK budget | Verified by latest CI; enforced on future builds |
+| Compact dark UI with reduced vertical padding | Implemented |
+| Manual `.conf` import flow | Removed from the home screen |
+| Automatic provider discovery | Not implemented |
+| Real free country gateways | Not available |
+| Connect button | Explains the missing provider/gateway dependency; does not fake a connection |
+| DNS / IPv4 / IPv6 leak and network-change testing | Not verified |
 | Production release | Not ready |
 
-## Connect using a trusted profile
+## How automatic connection must work
 
-1. Obtain a WireGuard configuration file (`.conf`) from a VPN provider you trust or from your own WireGuard server.
-2. Install the Nuvex development APK.
-3. Tap **Import WireGuard profile** and choose the configuration file.
-4. Approve Android's VPN permission prompt.
-5. The app will show connected only after the tunnel backend reports that the tunnel is up. A valid profile alone does not guarantee that the remote server is online.
+A Calyx/Bitmask-style experience requires a trusted provider that exposes a compatible configuration/discovery service and operates real VPN gateways. The client must fetch and validate provider configuration, select an available gateway, request Android VPN consent, establish the tunnel, and report success only after the tunnel is actually up.
 
-Never share your WireGuard configuration: it contains a private key. Do not send the profile to anyone or commit it to this repository.
+Nuvex does not currently have a provider agreement, compatible provider API integration, or its own funded gateways. We must not invent server endpoints, reuse another provider's private infrastructure, or show placeholder locations as connected servers. The official [Bitmask Android source](https://github.com/leapcode/bitmask_android) documents the provider-based approach; it also uses additional native components and is GPL-licensed, so directly importing it would require a license and APK-size review.
 
 ## Build from source
 
@@ -64,29 +57,22 @@ Requirements: Android SDK Platform 35, JDK 17 and Gradle 8.9.
 gradle --no-daemon :app:assembleDebug
 ```
 
-Per-ABI debug APKs are generated under `app/build/outputs/apk/debug/`. CI uploads APKs and SHA-256 checksums under the [latest workflow run](https://github.com/Aasimabdul/Nuvex-VPN/actions). Download the artifact named `nuvex-vpn-android-debug-apks`, then extract the ZIP to get the APKs and `SHA256SUMS.txt`.
+Per-ABI debug APKs are generated under `app/build/outputs/apk/debug/`. CI uploads APKs and SHA-256 checksums under the [GitHub Actions workflow runs](https://github.com/Aasimabdul/Nuvex-VPN/actions).
 
 ## Security and privacy
 
-- No ad SDK or analytics SDK is included in this project.
-- The app does not embed private gateway keys or pretend that placeholder countries are working servers.
-- The security and logging policy of the gateway provider is separate from the Nuvex source code.
-- DNS handling, IPv4/IPv6 leak resistance, kill-switch behavior, reconnect after network changes, and long-duration stability still need independent testing.
-- Until those checks and managed gateway operations exist, this app is not suitable for sensitive traffic.
+- No ad SDK or analytics SDK is included.
+- No fake gateway addresses or embedded provider secrets are used.
+- DNS handling, IPv4/IPv6 leak resistance, kill-switch behavior, reconnects, and long-duration stability have not been verified.
+- Until provider integration and security tests are complete, this app is not suitable for sensitive traffic.
 
 ## Roadmap
 
-1. Verify connection lifecycle, error handling and app/process recovery.
-2. Add automated tunnel, routing, DNS and leak tests.
-3. Establish a transparent, sustainable gateway provider/infrastructure plan before advertising built-in country servers.
-4. Measure APK sizes, optimize where possible, and publish checksums for any release.
-
-## Contributing
-
-Bug reports and pull requests are welcome. Do not include private keys, VPN profiles, credentials or sensitive network logs in issues.
+1. Choose a legitimate provider integration or operate Nuvex gateways.
+2. Implement provider discovery and secure configuration delivery.
+3. Add tunnel lifecycle, routing, DNS and leak tests.
+4. Verify APK sizes and publish checksums for release builds.
 
 ## License
 
 MIT — see [LICENSE](LICENSE).
-
-<p align="center"><strong>Built in the open. Privacy claims earned through testing.</strong></p>
