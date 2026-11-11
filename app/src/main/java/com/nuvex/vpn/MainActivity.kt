@@ -26,18 +26,7 @@ private object Palette {
 private data class Server(val flag: String, val name: String, val region: String)
 
 class MainActivity : Activity() {
-    private val servers = listOf(
-        Server("🇸🇬", "Singapore", "Asia Pacific"),
-        Server("🇮🇳", "India", "South Asia"),
-        Server("🇯🇵", "Japan", "Asia Pacific"),
-        Server("🇳🇱", "Netherlands", "Europe"),
-        Server("🇩🇪", "Germany", "Europe"),
-        Server("🇬🇧", "United Kingdom", "Europe"),
-        Server("🇺🇸", "United States", "North America"),
-        Server("🇨🇦", "Canada", "North America"),
-        Server("🇫🇷", "France", "Europe"),
-        Server("🇦🇺", "Australia", "Oceania")
-    )
+    private val servers = emptyList<Server>()
     private var selected = 0
     private var serverList: LinearLayout? = null
     private var selectedLabel: TextView? = null
@@ -125,14 +114,14 @@ class MainActivity : Activity() {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER_VERTICAL
         }
-        locationHeader.addView(label("LOCATIONS", 12f, Palette.primary, true),
+        locationHeader.addView(label("LIVE LOCATIONS", 12f, Palette.primary, true),
             LinearLayout.LayoutParams(0, dp(28), 1f))
-        locationHeader.addView(label("10 PLANNED", 10f, Palette.muted, true))
+        locationHeader.addView(label("0 AVAILABLE", 10f, Palette.muted, true))
         root.addView(locationHeader, margin(bottom = 5))
 
-        selectedLabel = label("Selected: Singapore", 11f, Palette.cyan, true)
+        selectedLabel = label("No server selected", 11f, Palette.cyan, true)
         root.addView(selectedLabel!!, margin(bottom = 6))
-        root.addView(label("These locations are previews, not live VPN servers yet.", 11f, Palette.muted),
+        root.addView(label("No verified VPN provider is configured. Locations appear only after live availability is confirmed.", 11f, Palette.muted),
             margin(bottom = 8))
 
         serverList = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
@@ -146,7 +135,7 @@ class MainActivity : Activity() {
     private fun renderServers() {
         val list = serverList ?: return
         list.removeAllViews()
-        servers.forEachIndexed { index, server ->
+        if (servers.isEmpty()) {\n            list.addView(label("Provider not configured", 14f, Palette.primary, true), margin(top = 8, bottom = 3))\n            list.addView(label("Nuvex needs an authorized provider account before it can show real locations or connect.", 11f, Palette.muted), margin(bottom = 6))\n            return\n        }\n        servers.forEachIndexed { index, server ->
             val active = index == selected
             val row = LinearLayout(this).apply {
                 orientation = LinearLayout.HORIZONTAL
