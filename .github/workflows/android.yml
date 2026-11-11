@@ -25,6 +25,8 @@ jobs:
         uses: gradle/actions/setup-gradle@v4
         with:
           gradle-version: '8.9'
+      - name: Build Ktor backend
+        run: gradle --no-daemon -p backend test build
       - name: Install Android SDK packages
         env:
           ANDROID_HOME: /usr/local/lib/android/sdk
