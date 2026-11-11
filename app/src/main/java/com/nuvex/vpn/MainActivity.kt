@@ -2,6 +2,7 @@ package com.nuvex.vpn
 
 import android.app.Activity
 import android.content.Intent
+import android.content.Intent
 import android.graphics.Color
 import android.graphics.Typeface
 import android.graphics.drawable.GradientDrawable
@@ -13,6 +14,8 @@ import android.widget.LinearLayout
 import android.widget.ScrollView
 import android.widget.TextView
 import android.widget.Toast
+import java.io.BufferedReader
+import java.io.InputStreamReader
 import com.wireguard.android.backend.Tunnel
 
 private object P {
@@ -22,7 +25,7 @@ private object P {
     val muted = Color.rgb(164, 166, 194); val stroke = Color.rgb(51, 43, 79)
     val green = Color.rgb(54, 239, 157); val red = Color.rgb(255, 76, 101)
 }
-private data class Profile(val flag: String, val name: String, val server: String, val config: String)
+private data class Profile(val flag: String, val name: String, val server: String, val config: String, val endpoint: String = "")
 
 /** Country configs bundled in app/src/main/assets/configs/ (git-ignored, they contain private keys). */
 private data class BundledServer(val file: String, val code: String, val country: String, val flag: String)
@@ -93,6 +96,12 @@ class MainActivity : Activity() {
         count = label("0 LOCATIONS", 12f, P.muted, true); section.addView(count); root.addView(section, margin(0, 6))
         selectedText = label("Select a location", 13f, P.cyan, true); root.addView(selectedText, margin(0, 8))
         list = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }; root.addView(list)
+        val importButton = button("＋  Import WireGuard .conf files", P.raised).apply {
+            setTextColor(P.cyan); minHeight = dp(54)
+            setOnClickListener { pickConfigs() }
+        }
+        root.addView(importButton, margin(10, 0))
+        root.addView(label("Config files stay on this device; never upload private keys publicly.", 12f, P.muted), margin(8, 0))
         root.addView(label("DARK NAVY  ·  NEON CYAN  ·  WIREGUARD", 9f, P.muted).apply { gravity = Gravity.CENTER; letterSpacing = 0.035f }, margin(18, 0))
         loadBundledProfiles()
         renderProfiles()
@@ -110,12 +119,52 @@ class MainActivity : Activity() {
         selected = 0
     }
 
+    private fun pickConfigs() {
+        val intent = Intent(Intent.ACTION_OPEN_DOCUMENT).apply {
+            addCategory(Intent.CATEGORY_OPENABLE)
+            type = "*/*"
+            putExtra(Intent.EXTRA_MIME_TYPES, arrayOf("text/plain", "application/octet-stream"))
+            putExtra(Intent.EXTRA_ALLOW_MULTIPLE, true)
+        }
+        @Suppress("DEPRECATION")
+        startActivityForResult(intent, IMPORT_CONFIG)
+    }
+
     @Deprecated("Uses Activity results for broad Android compatibility")
     override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
         super.onActivityResult(requestCode, resultCode, data)
         if (requestCode == VPN_PERMISSION) {
-            if (resultCode == RESULT_OK) connectVpn() else showStatus("VPN PERMISSION DENIED", "Allow Android's VPN prompt to continue.")
+            if (resultCode == RESULT_OK) connectVpn()
+            else showStatus("VPN PERMISSION DENIED", "Allow Android's VPN prompt to continue.")
+            return
         }
+        if (requestCode != IMPORT_CONFIG || resultCode != RESULT_OK || data == null) return
+        val uris = mutableListOf<android.net.Uri>()
+        data.clipData?.let { clip -> for (i in 0 until clip.itemCount) uris.add(clip.getItemAt(i).uri) }
+        if (uris.isEmpty()) data.data?.let { uris.add(it) }
+        var added = 0
+        for (uri in uris) {
+            val raw = runCatching {
+                contentResolver.openInputStream(uri).use { stream ->
+                    requireNotNull(stream)
+                    BufferedReader(InputStreamReader(stream)).use { it.readText() }
+                }
+            }.getOrNull() ?: continue
+            if (!raw.contains("[Interface]") || !raw.contains("[Peer]") ||
+                !Regex("(?m)^\\s*PrivateKey\\s*=").containsMatchIn(raw)) continue
+            val endpoint = Regex("(?m)^\\s*Endpoint\\s*=\\s*(.+?)\\s*$").find(raw)?.groupValues?.get(1) ?: continue
+            if (profiles.any { it.endpoint == endpoint }) continue
+            val tag = Regex("(?m)^\\s*#\\s*([A-Z]{2})-FREE#([0-9]+)").find(raw)
+            val code = tag?.groupValues?.get(1) ?: ""
+            val num = tag?.groupValues?.get(2) ?: ""
+            val country = when (code) { "SG" -> "Singapore"; "RO" -> "Romania"; "NL" -> "Netherlands"; "US" -> "United States"; "CA" -> "Canada"; else -> "Imported server" }
+            val flag = when (code) { "SG" -> "🇸🇬"; "RO" -> "🇷🇴"; "NL" -> "🇳🇱"; "US" -> "🇺🇸"; "CA" -> "🇨🇦"; else -> "🌐" }
+            profiles.add(Profile(flag, country, if (num.isNotEmpty()) "Free server #$num" else endpoint, raw.trim(), endpoint))
+            added++
+        }
+        selected = 0
+        renderProfiles()
+        Toast.makeText(this, if (added > 0) "Imported $added server config(s)" else "No valid new .conf files found", Toast.LENGTH_LONG).show()
     }
 
     private fun connectVpn() {
@@ -161,8 +210,8 @@ class MainActivity : Activity() {
         if (!::list.isInitialized) return
         list.removeAllViews(); count.text = profiles.size.toString() + " LOCATIONS"
         if (profiles.isEmpty()) {
-            list.addView(label("No server configs in this build", 16f, P.text, true), margin(12, 4))
-            list.addView(label("Add your .conf files to app/src/main/assets/configs/ and rebuild.", 13f, P.muted), margin(0, 8))
+            list.addView(label("No locations available yet", 16f, P.text, true), margin(12, 4))
+            list.addView(label("Tap Import WireGuard .conf files below to load your servers.", 13f, P.muted), margin(0, 8))
             selectedText.text = "No locations available"; return
         }
         profiles.forEachIndexed { index, profile ->
@@ -201,5 +250,5 @@ class MainActivity : Activity() {
     private fun rounded(fill: Int, radius: Int, stroke: Int) = GradientDrawable().apply { setColor(fill); cornerRadius = dp(radius).toFloat(); setStroke(dp(1), stroke) }
     private fun margin(top: Int = 0, bottom: Int = 0) = LinearLayout.LayoutParams(-1, -2).apply { topMargin = dp(top); bottomMargin = dp(bottom) }
     private fun dp(value: Int) = (value * resources.displayMetrics.density).toInt()
-    companion object { private const val VPN_PERMISSION = 4102 }
+    companion object { private const val VPN_PERMISSION = 4102; private const val IMPORT_CONFIG = 4101 }
 }
