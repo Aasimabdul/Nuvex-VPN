@@ -55,5 +55,6 @@ android {
 
 dependencies {
     implementation("com.wireguard.android:tunnel:1.0.20260102")
+    implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.9.0")
     coreLibraryDesugaring("com.android.tools:desugar_jdk_libs:2.0.3")
 }
