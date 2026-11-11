@@ -18,11 +18,11 @@ import java.io.BufferedReader
 import java.io.InputStreamReader
 
 private object P {
-    val bg = Color.rgb(7, 14, 31); val panel = Color.rgb(15, 27, 51)
-    val raised = Color.rgb(21, 37, 67); val blue = Color.rgb(34, 137, 255)
-    val cyan = Color.rgb(0, 213, 255); val text = Color.rgb(239, 245, 255)
-    val muted = Color.rgb(143, 163, 194); val stroke = Color.rgb(35, 60, 98)
-    val green = Color.rgb(65, 220, 160); val red = Color.rgb(255, 105, 125)
+    val bg = Color.rgb(5, 8, 20); val panel = Color.rgb(15, 20, 38)
+    val raised = Color.rgb(31, 25, 57); val blue = Color.rgb(153, 67, 255)
+    val cyan = Color.rgb(196, 111, 255); val text = Color.rgb(245, 244, 255)
+    val muted = Color.rgb(164, 166, 194); val stroke = Color.rgb(51, 43, 79)
+    val green = Color.rgb(54, 239, 157); val red = Color.rgb(255, 76, 101)
 }
 private data class Profile(val endpoint: String, val flag: String, val name: String, val config: String)
 
@@ -47,20 +47,25 @@ class MainActivity : Activity() {
         val root = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setPadding(dp(20), dp(14), dp(20), dp(26)) }
         scroll.addView(root); setContentView(scroll)
         val header = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL }
-        header.addView(label("◈  NUVEX", 25f, P.text, true), LinearLayout.LayoutParams(0, dp(48), 1f))
-        header.addView(pill("WIREGUARD", P.raised, P.cyan)); root.addView(header)
-        root.addView(label("YOUR CONNECTION", 12f, P.cyan, true), margin(14, 4))
-        root.addView(label("Privacy, on your terms.", 28f, P.text, true), margin(0, 5))
-        root.addView(label("Choose a server and connect securely.", 15f, P.muted), margin(0, 16))
-        val card = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setPadding(dp(16), dp(16), dp(16), dp(16)); background = rounded(P.panel, 22, P.stroke) }
+        header.addView(label("⬡  Nuvex VPN", 25f, P.text, true), LinearLayout.LayoutParams(0, dp(48), 1f))
+        header.addView(pill("✦ FREE", P.raised, P.cyan)); root.addView(header)
+        root.addView(label("Secure  ·  Fast  ·  Free", 13f, P.muted), margin(0, 18))
+        root.addView(label("YOUR CONNECTION", 12f, P.cyan, true).apply { gravity = Gravity.CENTER }, margin(8, 4))
+        root.addView(label("One tap to feel safer.", 22f, P.text, true).apply { gravity = Gravity.CENTER }, margin(0, 5))
+        root.addView(label("Choose your location below.", 14f, P.muted).apply { gravity = Gravity.CENTER }, margin(0, 14))
+        val card = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; gravity = Gravity.CENTER_HORIZONTAL; setPadding(dp(12), dp(16), dp(12), dp(16)); background = rounded(P.panel, 22, P.stroke) }
         val top = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL }
-        top.addView(TextView(this).apply { text = "◈"; textSize = 27f; gravity = Gravity.CENTER; setTextColor(P.cyan); background = rounded(P.raised, 18, P.stroke) }, LinearLayout.LayoutParams(dp(58), dp(58)).apply { rightMargin = dp(12) })
+        top.gravity = Gravity.CENTER
+        top.addView(TextView(this).apply { text = "⛨"; textSize = 25f; gravity = Gravity.CENTER; setTextColor(P.cyan); background = rounded(P.raised, 18, P.stroke) }, LinearLayout.LayoutParams(dp(54), dp(54)).apply { rightMargin = dp(12) })
         val statusCol = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
-        status = label("NOT CONNECTED", 16f, P.text, true)
-        detail = label("Import your WireGuard configs to begin.", 13f, P.muted)
+        status = label("NOT CONNECTED", 17f, P.text, true).apply { gravity = Gravity.CENTER }
+        detail = label("Import your WireGuard configs to begin.", 13f, P.muted).apply { gravity = Gravity.CENTER }
         statusCol.addView(status); statusCol.addView(detail, margin(5, 0))
-        top.addView(statusCol, LinearLayout.LayoutParams(0, -2, 1f)); card.addView(top)
-        connect = button("CONNECT", P.blue).apply { textSize = 17f; minHeight = dp(60) }
+        top.addView(statusCol, LinearLayout.LayoutParams(0, -2, 1f)); card.addView(top, margin(0, 10))
+        connect = button("⏻\\nCONNECT", P.blue).apply {
+            textSize = 19f; minHeight = dp(0); gravity = Gravity.CENTER
+            background = GradientDrawable(GradientDrawable.Orientation.TL_BR, intArrayOf(Color.rgb(191, 104, 255), Color.rgb(100, 39, 230))).apply { shape = GradientDrawable.OVAL; setStroke(dp(4), Color.rgb(74, 37, 119)) }
+        }
         connect.setOnClickListener {
             if (connected) disconnectVpn()
             else if (profiles.isEmpty()) pickConfigs()
@@ -72,15 +77,17 @@ class MainActivity : Activity() {
                 } else connectVpn()
             }
         }
-        val connectHolder = LinearLayout(this).apply { gravity = Gravity.CENTER; orientation = LinearLayout.VERTICAL }; connectHolder.addView(connect, LinearLayout.LayoutParams(dp(230), -2)); card.addView(connectHolder, margin(16, 0)); root.addView(card, margin(0, 18))
+        val connectHolder = LinearLayout(this).apply { gravity = Gravity.CENTER; orientation = LinearLayout.VERTICAL }
+        connectHolder.addView(connect, LinearLayout.LayoutParams(dp(220), dp(220)))
+        card.addView(connectHolder, margin(14, 8)); root.addView(card, margin(0, 14))
         val section = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL }
         section.addView(label("SERVER LOCATIONS", 15f, P.text, true), LinearLayout.LayoutParams(0, dp(30), 1f))
         count = label("0 IMPORTED", 12f, P.muted, true); section.addView(count); root.addView(section, margin(0, 6))
         selectedText = label("Import configs to select a location", 13f, P.cyan, true); root.addView(selectedText, margin(0, 8))
         list = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }; root.addView(list)
-        val import = button("＋  Import WireGuard .conf files", P.raised).apply { textSize = 15f; minHeight = dp(54) }.apply { setTextColor(P.cyan); setOnClickListener { pickConfigs() } }
+        val import = button("＋  Import WireGuard server configs", P.raised).apply { textSize = 15f; minHeight = dp(54) }.apply { setTextColor(P.cyan); setOnClickListener { pickConfigs() } }
         root.addView(import, margin(8, 10))
-        root.addView(label("CONFIG PRIVACY", 12f, P.cyan, true), margin(10, 4))
+        root.addView(label("YOUR CONFIGS STAY PRIVATE", 12f, P.cyan, true), margin(10, 4))
         root.addView(label("Profiles stay in memory for this app session and are not uploaded. Import your .conf files again after restarting.", 13f, P.muted), margin(0, 14))
         root.addView(label("DARK NAVY  ·  NEON CYAN  ·  WIREGUARD", 9f, P.muted).apply { gravity = Gravity.CENTER; letterSpacing = 0.035f }, margin(4, 0))
         renderProfiles()
@@ -138,17 +145,17 @@ class MainActivity : Activity() {
             try {
                 engine.connect("nuvex", profile.config) { state ->
                     runOnUiThread {
-                        if (state == Tunnel.State.UP) { connected = true; showStatus("CONNECTED", "Tunnel is up · " + profile.name); connect.text = "Disconnect"; connect.isEnabled = true }
-                        else if (state == Tunnel.State.DOWN && connected) { connected = false; showStatus("DISCONNECTED", "VPN tunnel stopped."); connect.text = "Connect"; connect.isEnabled = true }
+                        if (state == Tunnel.State.UP) { connected = true; showStatus("CONNECTED", "Tunnel is up · " + profile.name); connect.text = "⏻\\nDISCONNECT"; connect.isEnabled = true }
+                        else if (state == Tunnel.State.DOWN && connected) { connected = false; showStatus("DISCONNECTED", "VPN tunnel stopped."); connect.text = "⏻\\nCONNECT"; connect.isEnabled = true }
                     }
                 }
                 runOnUiThread {
                     connected = engine.currentState() == Tunnel.State.UP
                     showStatus(if (connected) "CONNECTED" else "NOT CONNECTED", if (connected) "Tunnel is up · " + profile.name else "Tunnel did not report an active state.")
-                    connect.text = if (connected) "Disconnect" else "Connect"; connect.isEnabled = true
+                    connect.text = if (connected) "⏻\\nDISCONNECT" else "⏻\\nCONNECT"; connect.isEnabled = true
                 }
             } catch (e: Exception) {
-                runOnUiThread { connected = false; showStatus("CONNECTION FAILED", e.message?.take(100) ?: "Check the config and server."); connect.text = "Try again"; connect.isEnabled = true }
+                runOnUiThread { connected = false; showStatus("CONNECTION FAILED", e.message?.take(100) ?: "Check the config and server."); connect.text = "⏻\\nTRY AGAIN"; connect.isEnabled = true }
             }
         }.start()
     }
