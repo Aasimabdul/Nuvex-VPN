@@ -17,7 +17,11 @@ import android.widget.Toast
 import com.nuvex.vpn.provider.SelfHostedProvider
 import com.nuvex.vpn.provider.SessionRequest
 import com.wireguard.android.backend.Tunnel
+import com.wireguard.config.Config
 import kotlinx.coroutines.runBlocking
+import java.io.BufferedReader
+import java.io.File
+import java.io.StringReader
 import java.util.UUID
 
 private object P {
@@ -28,7 +32,7 @@ private object P {
     val green = Color.rgb(54, 239, 157); val red = Color.rgb(255, 76, 101)
 }
 
-private data class Loc(val id: String, val flag: String, val name: String, val detail: String)
+private data class Loc(val id: String, val flag: String, val name: String, val detail: String, val config: String? = null)
 
 class MainActivity : Activity() {
     private var locations = listOf<Loc>()
@@ -83,7 +87,7 @@ class MainActivity : Activity() {
         }
         connect.setOnClickListener {
             if (connected) disconnectVpn()
-            else if (locations.isEmpty()) loadLocations()
+            else if (locations.isEmpty()) { if (provider == null) pickConfigs() else loadLocations() }
             else {
                 val intent = VpnService.prepare(this)
                 if (intent != null) {
@@ -100,6 +104,11 @@ class MainActivity : Activity() {
         count = label("0 LOCATIONS", 12f, P.muted, true); section.addView(count); root.addView(section, margin(0, 6))
         selectedText = label("Select a location", 13f, P.cyan, true); root.addView(selectedText, margin(0, 8))
         list = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }; root.addView(list)
+        if (provider == null) {
+            val import = button("＋  Import WireGuard configs", P.raised).apply { textSize = 15f; minHeight = dp(54); setTextColor(P.cyan); setOnClickListener { pickConfigs() } }
+            root.addView(import, margin(8, 10))
+            root.addView(label("Configs are stored only on this phone and are never uploaded.", 12f, P.muted).apply { gravity = Gravity.CENTER }, margin(0, 6))
+        }
         root.addView(label("DARK NAVY  ·  NEON CYAN  ·  WIREGUARD", 9f, P.muted).apply { gravity = Gravity.CENTER; letterSpacing = 0.035f }, margin(18, 0))
         renderLocations()
         loadLocations()
@@ -108,10 +117,7 @@ class MainActivity : Activity() {
     /** Asks the Nuvex server which countries are available. Nothing is invented locally. */
     private fun loadLocations() {
         val api = provider
-        if (api == null) {
-            showStatus("NOT CONFIGURED", "This build has no Nuvex server address.")
-            renderLocations(); return
-        }
+        if (api == null) { loadLocalConfigs(); return }
         showStatus("LOADING…", "Getting available locations.")
         Thread {
             try {
@@ -130,38 +136,92 @@ class MainActivity : Activity() {
         }.start()
     }
 
+    /** Shows the country list from configs the user imported onto this phone. */
+    private fun loadLocalConfigs() {
+        val files = File(filesDir, "configs").listFiles { f -> f.name.endsWith(".conf") }?.sortedBy { it.name } ?: emptyList()
+        val mapped = files.mapNotNull { f ->
+            val raw = runCatching { f.readText() }.getOrNull() ?: return@mapNotNull null
+            val mark = Regex("(?m)^\\s*#\\s*([A-Z]{2})-FREE#([0-9]+)").find(raw)
+            val code = mark?.groupValues?.get(1)
+            val country = if (code != null) java.util.Locale("", code).displayCountry else f.nameWithoutExtension
+            Loc(f.name, if (code != null) flagFor(code) else "🌐", country, if (mark != null) "Server #" + mark.groupValues[2] else "Imported config", raw)
+        }
+        locations = mapped; selected = 0; renderLocations()
+        if (mapped.isEmpty()) showStatus("NO SERVERS", "Tap Import and choose your WireGuard .conf files.")
+        else showStatus("NOT CONNECTED", "Pick a country, then tap Connect.")
+    }
+
+    private fun pickConfigs() {
+        val intent = Intent(Intent.ACTION_OPEN_DOCUMENT).apply {
+            addCategory(Intent.CATEGORY_OPENABLE); type = "*/*"
+            putExtra(Intent.EXTRA_ALLOW_MULTIPLE, true)
+        }
+        @Suppress("DEPRECATION")
+        startActivityForResult(intent, IMPORT_CONFIG)
+    }
+
+    private fun importConfigs(data: Intent) {
+        val uris = mutableListOf<android.net.Uri>()
+        data.clipData?.let { clip -> for (i in 0 until clip.itemCount) uris.add(clip.getItemAt(i).uri) }
+        if (uris.isEmpty()) data.data?.let { uris.add(it) }
+        val dir = File(filesDir, "configs").apply { mkdirs() }
+        var imported = 0
+        for (uri in uris) {
+            val raw = runCatching { contentResolver.openInputStream(uri)?.bufferedReader()?.use { it.readText() } }.getOrNull() ?: continue
+            if (raw.length > 20000) continue
+            // Only keep files that the WireGuard library accepts as a valid profile.
+            if (runCatching { Config.parse(BufferedReader(StringReader(raw))) }.isFailure) continue
+            val mark = Regex("(?m)^\\s*#\\s*([A-Z]{2})-FREE#([0-9]+)").find(raw)
+            val code = mark?.groupValues?.get(1)?.lowercase() ?: "xx"
+            val suffix = mark?.groupValues?.get(2) ?: Integer.toHexString(raw.hashCode())
+            runCatching { File(dir, "$code-$suffix.conf").writeText(raw.trim()); imported++ }
+        }
+        loadLocalConfigs()
+        Toast.makeText(this, if (imported > 0) "Imported $imported config(s)" else "No valid WireGuard configs found", Toast.LENGTH_LONG).show()
+    }
+
     @Deprecated("Uses Activity results for broad Android compatibility")
     override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
         super.onActivityResult(requestCode, resultCode, data)
+        if (requestCode == IMPORT_CONFIG) {
+            if (resultCode == RESULT_OK && data != null) importConfigs(data)
+            return
+        }
         if (requestCode == VPN_PERMISSION) {
             if (resultCode == RESULT_OK) connectVpn() else showStatus("VPN PERMISSION DENIED", "Allow Android's VPN prompt to continue.")
         }
     }
 
     private fun connectVpn() {
-        val api = provider ?: return
+        val api = provider
         val loc = locations.getOrNull(selected) ?: run { showStatus("CHOOSE A SERVER", "Select a country first."); return }
         showStatus("CONNECTING…", loc.name); connect.isEnabled = false
         Thread {
             var created: String? = null
             try {
-                val session = runBlocking { api.createSession(SessionRequest(userId = deviceId, deviceId = deviceId, locationId = loc.id)) }
-                created = session.id
-                engine.connect("nuvex", session.configuration) { state ->
+                val profileText: String
+                if (api != null) {
+                    val session = runBlocking { api.createSession(SessionRequest(userId = deviceId, deviceId = deviceId, locationId = loc.id)) }
+                    created = session.id
+                    profileText = session.configuration
+                } else {
+                    profileText = loc.config ?: throw IllegalStateException("This config file is missing.")
+                }
+                engine.connect("nuvex", profileText) { state ->
                     runOnUiThread {
                         if (state == Tunnel.State.UP) { connected = true; showStatus("CONNECTED", "Tunnel is up · " + loc.name); connect.text = "DISCONNECT"; connect.isEnabled = true }
                         else if (state == Tunnel.State.DOWN && connected) { connected = false; showStatus("DISCONNECTED", "VPN tunnel stopped."); connect.text = "CONNECT"; connect.isEnabled = true }
                     }
                 }
                 val up = engine.currentState() == Tunnel.State.UP
-                if (up) sessionId = session.id else runCatching { runBlocking { api.revokeSession(session.id) } }
+                if (up) sessionId = created else if (api != null) created?.let { id -> runCatching { runBlocking { api.revokeSession(id) } } }
                 runOnUiThread {
                     connected = up
                     showStatus(if (up) "CONNECTED" else "NOT CONNECTED", if (up) "Tunnel is up · " + loc.name else "Tunnel did not report an active state.")
                     connect.text = if (up) "DISCONNECT" else "CONNECT"; connect.isEnabled = true
                 }
             } catch (e: Exception) {
-                created?.let { id -> runCatching { runBlocking { api.revokeSession(id) } } }
+                if (api != null) created?.let { id -> runCatching { runBlocking { api.revokeSession(id) } } }
                 runOnUiThread { connected = false; showStatus("CONNECTION FAILED", e.message?.take(100) ?: "Check your connection and try again."); connect.text = "TRY AGAIN"; connect.isEnabled = true }
             }
         }.start()
@@ -195,7 +255,7 @@ class MainActivity : Activity() {
         list.removeAllViews(); count.text = locations.size.toString() + " LOCATIONS"
         if (locations.isEmpty()) {
             list.addView(label("No locations yet", 16f, P.text, true), margin(12, 4))
-            list.addView(label("Locations come from the Nuvex server. Tap Connect to try again.", 13f, P.muted), margin(0, 8))
+            list.addView(label(if (provider == null) "Tap Import below and choose your WireGuard .conf files." else "Locations come from the Nuvex server. Tap Connect to try again.", 13f, P.muted), margin(0, 8))
             selectedText.text = "No locations available"; return
         }
         locations.forEachIndexed { index, loc ->
@@ -240,5 +300,5 @@ class MainActivity : Activity() {
     private fun rounded(fill: Int, radius: Int, stroke: Int) = GradientDrawable().apply { setColor(fill); cornerRadius = dp(radius).toFloat(); setStroke(dp(1), stroke) }
     private fun margin(top: Int = 0, bottom: Int = 0) = LinearLayout.LayoutParams(-1, -2).apply { topMargin = dp(top); bottomMargin = dp(bottom) }
     private fun dp(value: Int) = (value * resources.displayMetrics.density).toInt()
-    companion object { private const val VPN_PERMISSION = 4102 }
+    companion object { private const val IMPORT_CONFIG = 4101; private const val VPN_PERMISSION = 4102 }
 }
